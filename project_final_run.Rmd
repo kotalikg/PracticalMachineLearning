@@ -1,0 +1,100 @@
+---
+title: "Practical Machine Learning project"
+output: html_document
+---
+
+#Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+The goal of project is to predict the manner in which they did the exercise, using 20 different test cases (pml-testing.csv).  
+
+#Data loading and preparation
+
+First step is loading the data and have a look on its structure and values. (not printed here):
+```{r, results='hide'}
+train = read.csv("pml-training.csv")
+test = read.csv("pml-testing.csv")
+
+head(train)
+summary(train) 
+str(train)
+```
+
+Based on the first view, the next data preparation issues were identified:
+
+* string variables, with "", "#DIV/0!" values
+* variables including mostly null values
+* 1-7 cols not relevant data for a general model (obs. id, name of participants, etc.)
+
+Applied data preparation process to manage the issues:
+
+* replace "#DIV/0!" values with "NA" values
+* remove all columns with "NA" values (including impacted variables in previos step)
+* remove the 1-7 columns with not desired content
+
+```{r, results='hide'}
+trainProc = as.data.frame(lapply(train, function(x) if(is.character(x)|is.factor(x)) gsub("#DIV/0!", NA, x) else x))
+trainValid = trainProc[, colSums(is.na(trainProc)) == 0]
+trainValid = trainValid[,8:60]
+
+summary(trainValid)
+```
+
+As I did not use any transformations which impacted the values of the remaining variables, modification of test set is not needed.
+
+#Modeling
+
+Load used libraries:
+```{r, results='hide'}
+library(caret)
+library(randomForest)
+```
+
+Split the original "trainValid" dataset to creat subsets for learning and testing:
+```{r, results='hide'}
+set.seed(123)
+split = createDataPartition(trainValid$classe, p=0.70, list=FALSE)
+trainLearn = trainValid[split, ]
+testLearn = trainValid[-split, ]
+```
+
+Create random forest model, using cross-validation:
+```{r, results='hide'}
+set.seed(123)
+numFolds = trainControl(method="cv", number = 3)
+model = train(classe ~ ., data=trainLearn, method="rf", trControl=numFolds, ntree=100, nodesize=25)
+```
+
+To manage potential overfitting riks, cross-validation (3 fold) and limited nodesize (25) were applied. The numer of trees was limited (100) as well to reach reasonable modeling time.
+
+Let's have a look on the model:
+```{r}
+model
+```
+
+To check the out-of-sample error, let's use the separated part of the dataset ("testLearn"):
+```{r, results='hide'}
+predict = predict(model, testLearn)
+```
+
+The results are:
+```{r}
+confusionMatrix(testLearn$classe, predict)
+```
+
+The accuracy is 0.9859, the out-of-sample error is 0.0141.
+
+#Prediction for provided cases (20) 
+
+Prediction using the given test cases and the created model:
+```{r, results='hide'}
+predict20 = predict(model, test)
+```
+
+The results are:
+```{r}
+predict20
+```
+
+Thank you for your time! :)
